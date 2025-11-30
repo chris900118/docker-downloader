@@ -1,4 +1,4 @@
-name: Ultimate Docker Download
+name: The Final Redemption
 
 on:
   workflow_dispatch:
@@ -6,71 +6,37 @@ on:
       image_name:
         description: '镜像名称'
         required: true
-        default: 'kaedei/dandanplay-library-index-server:latest'
+        default: 'dandanplay/dandanplay-server:latest'
 
 jobs:
-  download_and_package:
+  download_from_russia:
     runs-on: ubuntu-latest
     steps:
-      - name: Try Pulling from Multiple Mirrors
+      - name: Pull from Huecker (Russia)
         run: |
-          IMAGE_NAME="${{ github.event.inputs.image_name }}"
-          echo "目标镜像: $IMAGE_NAME"
+          # 这是一个俄罗斯的代理，专门治各种不服
+          # 另外，我们把镜像换成了官方维护的 dandanplay/dandanplay-server
+          # kaedei 那个太老了，可能很多代理站都删缓存了
           
-          # 定义镜像源列表 (这是目前还活着的几个)
-          MIRRORS=(
-            "docker.1ms.run"
-            "docker.ketches.cn"
-            "docker.m.daocloud.io"
-            "docker.1panel.live"
-            "docker.hlyun.org"
-            "docker.rainbond.cc"
-            "docker.io"  # 最后尝试直连
-          )
+          TARGET_IMAGE="${{ github.event.inputs.image_name }}"
+          PROXY_URL="huecker.io/${TARGET_IMAGE}"
+          
+          echo "正在请求俄罗斯援军: $PROXY_URL ..."
+          
+          docker pull "$PROXY_URL"
+          
+          # 拉下来后，给它改个名字，改回标准名字
+          echo "正在重新标记镜像..."
+          docker tag "$PROXY_URL" "$TARGET_IMAGE"
+          docker rmi "$PROXY_URL"
 
-          SUCCESS=false
-
-          for MIRROR in "${MIRRORS[@]}"; do
-            if [ "$MIRROR" == "docker.io" ]; then
-               FULL_URL="$IMAGE_NAME"
-            else
-               FULL_URL="$MIRROR/$IMAGE_NAME"
-            fi
-            
-            echo "----------------------------------------"
-            echo "正在尝试镜像源: $MIRROR ..."
-            echo "拉取地址: $FULL_URL"
-            
-            if docker pull "$FULL_URL"; then
-              echo "✅ 成功从 $MIRROR 拉取！"
-              
-              # 如果是从代理拉下来的，改回原名
-              if [ "$MIRROR" != "docker.io" ]; then
-                echo "正在重命名镜像..."
-                docker tag "$FULL_URL" "$IMAGE_NAME"
-                docker rmi "$FULL_URL"
-              fi
-              
-              SUCCESS=true
-              break
-            else
-              echo "❌ 失败 (尝试下一个)..."
-            fi
-          done
-
-          if [ "$SUCCESS" = false ]; then
-            echo "💀 所有镜像源都失败了，彻底没救了。"
-            exit 1
-          fi
-
-      - name: Save to Tar
+      - name: Save Docker Image to Tar
         run: |
-          echo "正在打包..."
           docker save -o dandanplay.tar ${{ github.event.inputs.image_name }}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dandanplay-tar-package
+          name: dandanplay-final
           path: dandanplay.tar
           retention-days: 1
