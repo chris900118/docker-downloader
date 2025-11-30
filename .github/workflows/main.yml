@@ -1,32 +1,76 @@
-name: Download Docker Image (Smart Retry)
+name: Ultimate Docker Download
 
 on:
   workflow_dispatch:
     inputs:
       image_name:
-        description: 'Image Name'
+        description: '镜像名称'
         required: true
         default: 'kaedei/dandanplay-library-index-server:latest'
 
 jobs:
-  download_image:
+  download_and_package:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull Image (Try Proxy)
+      - name: Try Pulling from Multiple Mirrors
         run: |
-          echo "正在尝试通过代理拉取..."
-          # 尝试使用 1panel 代理拉取
-          docker pull docker.1panel.live/${{ github.event.inputs.image_name }}
+          IMAGE_NAME="${{ github.event.inputs.image_name }}"
+          echo "目标镜像: $IMAGE_NAME"
           
-          # 拉取成功后，把名字改回原来的，方便导出
-          docker tag docker.1panel.live/${{ github.event.inputs.image_name }} ${{ github.event.inputs.image_name }}
+          # 定义镜像源列表 (这是目前还活着的几个)
+          MIRRORS=(
+            "docker.1ms.run"
+            "docker.ketches.cn"
+            "docker.m.daocloud.io"
+            "docker.1panel.live"
+            "docker.hlyun.org"
+            "docker.rainbond.cc"
+            "docker.io"  # 最后尝试直连
+          )
 
-      - name: Save Docker Image to Tar
-        run: docker save -o image.tar ${{ github.event.inputs.image_name }}
+          SUCCESS=false
+
+          for MIRROR in "${MIRRORS[@]}"; do
+            if [ "$MIRROR" == "docker.io" ]; then
+               FULL_URL="$IMAGE_NAME"
+            else
+               FULL_URL="$MIRROR/$IMAGE_NAME"
+            fi
+            
+            echo "----------------------------------------"
+            echo "正在尝试镜像源: $MIRROR ..."
+            echo "拉取地址: $FULL_URL"
+            
+            if docker pull "$FULL_URL"; then
+              echo "✅ 成功从 $MIRROR 拉取！"
+              
+              # 如果是从代理拉下来的，改回原名
+              if [ "$MIRROR" != "docker.io" ]; then
+                echo "正在重命名镜像..."
+                docker tag "$FULL_URL" "$IMAGE_NAME"
+                docker rmi "$FULL_URL"
+              fi
+              
+              SUCCESS=true
+              break
+            else
+              echo "❌ 失败 (尝试下一个)..."
+            fi
+          done
+
+          if [ "$SUCCESS" = false ]; then
+            echo "💀 所有镜像源都失败了，彻底没救了。"
+            exit 1
+          fi
+
+      - name: Save to Tar
+        run: |
+          echo "正在打包..."
+          docker save -o dandanplay.tar ${{ github.event.inputs.image_name }}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dandanplay-image
-          path: image.tar
+          name: dandanplay-tar-package
+          path: dandanplay.tar
           retention-days: 1
