@@ -1,10 +1,10 @@
-name: Download Docker Image
+name: Download Docker Image (Smart Retry)
 
 on:
   workflow_dispatch:
     inputs:
       image_name:
-        description: '输入镜像名称 (例如: kaedei/dandanplay-library-index-server:latest)'
+        description: 'Image Name'
         required: true
         default: 'kaedei/dandanplay-library-index-server:latest'
 
@@ -12,15 +12,21 @@ jobs:
   download_image:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull Docker Image
-        run: docker pull ${{ github.event.inputs.image_name }}
+      - name: Pull Image (Try Proxy)
+        run: |
+          echo "正在尝试通过代理拉取..."
+          # 尝试使用 1panel 代理拉取
+          docker pull docker.1panel.live/${{ github.event.inputs.image_name }}
+          
+          # 拉取成功后，把名字改回原来的，方便导出
+          docker tag docker.1panel.live/${{ github.event.inputs.image_name }} ${{ github.event.inputs.image_name }}
 
       - name: Save Docker Image to Tar
-        run: docker save -o my-image.tar ${{ github.event.inputs.image_name }}
+        run: docker save -o image.tar ${{ github.event.inputs.image_name }}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image-file
-          path: my-image.tar
+          name: dandanplay-image
+          path: image.tar
           retention-days: 1
