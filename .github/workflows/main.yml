@@ -1,0 +1,26 @@
+name: Download Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: '输入镜像名称 (例如: kaedei/dandanplay-library-index-server:latest)'
+        required: true
+        default: 'kaedei/dandanplay-library-index-server:latest'
+
+jobs:
+  download_image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull Docker Image
+        run: docker pull ${{ github.event.inputs.image_name }}
+
+      - name: Save Docker Image to Tar
+        run: docker save -o my-image.tar ${{ github.event.inputs.image_name }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-file
+          path: my-image.tar
+          retention-days: 1
